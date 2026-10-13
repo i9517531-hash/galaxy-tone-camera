@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#090c14">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Galaxy Tone">
+  <meta name="description" content="即時套用三星風格色調的私人相機及照片編輯工具。所有照片只在你的裝置上處理。">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./icon-180.png">
+  <title>Galaxy Tone · 私人色調相機</title>
+  <style>
+    :root{color-scheme:dark;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Noto Sans TC",sans-serif;background:#090c14;color:#f5f7fb;-webkit-tap-highlight-color:transparent}
+    *{box-sizing:border-box}html{height:100%;background:#090c14}body{margin:0;min-height:100%;background:radial-gradient(ellipse at 50% -15%,#17233c 0%,#090c14 58%);}
+    button,input{font:inherit}button{cursor:pointer}button:disabled{opacity:.48;cursor:default}
+    .shell{max-width:470px;min-height:100dvh;margin:auto;padding:calc(14px + env(safe-area-inset-top)) 18px calc(24px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:14px}
+    header{display:flex;justify-content:space-between;align-items:center;gap:12px}
+    .brand{display:flex;align-items:center;gap:11px}.logo{width:38px;height:38px;display:grid;place-items:center;border-radius:13px;background:linear-gradient(145deg,#345eff,#a24dfc);box-shadow:0 5px 22px #4258ff44;font-size:23px;font-weight:800;letter-spacing:-3px;padding-right:3px}
+    h1{font-size:17px;margin:0;letter-spacing:.045em;font-weight:780}.sub{color:#9ca9c4;font-size:11px;letter-spacing:.035em;margin:3px 0 0}
+    .privacy{font-size:10px;color:#a2badc;padding:7px 9px;border:1px solid #2b3958;border-radius:100px;white-space:nowrap}
+    .segmented{display:grid;grid-template-columns:1fr 1fr;padding:4px;background:#141b2c;border:1px solid #263049;border-radius:15px;gap:4px}
+    .segmented button{border:0;background:transparent;color:#90a0bb;border-radius:11px;padding:11px 12px;font-size:13px;font-weight:690}
+    .segmented button[aria-selected="true"]{color:white;background:#293754;box-shadow:0 2px 8px #02050b55}
+    .viewfinder{width:100%;aspect-ratio:3/4;max-height:calc(100dvh - 335px);min-height:255px;position:relative;overflow:hidden;border-radius:23px;background:#101827;box-shadow:0 22px 40px #0008,0 0 0 1px #33415b;isolation:isolate}
+    .viewfinder video,.viewfinder img{display:none;position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;z-index:1}
+    .viewfinder .selfie{transform:scaleX(-1)}
+    .viewfinder[data-source="camera"] video,.viewfinder[data-source="photo"] #photoPreview,.viewfinder[data-source="result"] #resultPreview{display:block}
+    .viewfinder[data-source="photo"] #photoPreview{object-fit:contain}
+    .viewfinder[data-source="result"] #resultPreview{object-fit:contain;filter:none!important;transform:none}
+    .shimmer{position:absolute;inset:0;z-index:0;background:radial-gradient(circle at 30% 30%,#293a58 0%,transparent 45%),linear-gradient(155deg,#14213b,#0b1424 72%)}
+    .guide{position:absolute;z-index:3;inset:0;display:grid;place-items:center;padding:28px;text-align:center;pointer-events:none}
+    .guide .starter{pointer-events:auto;max-width:250px}
+    .guide .camera-emoji{font-size:38px;margin-bottom:11px}
+    .guide h2{margin:0 0 9px;font-size:21px;font-weight:760}.guide p{color:#adb9d3;font-size:13px;line-height:1.7;margin:0 0 17px}
+    .primary{background:#dfe8ff;color:#111a2d;border:0;border-radius:14px;padding:12px 22px;font-weight:790;box-shadow:0 7px 22px #0005}
+    .floating-tag{position:absolute;top:16px;left:15px;z-index:4;background:#090d1899;border:1px solid #ffffff37;backdrop-filter:blur(12px);border-radius:100px;padding:8px 11px;font-size:10px;letter-spacing:.08em;color:#e0e6fa;display:none}
+    .viewfinder[data-source="camera"] .floating-tag,.viewfinder[data-source="photo"] .floating-tag{display:block}
+    .viewfinder .corner{position:absolute;z-index:3;bottom:16px;left:15px;color:#ffffffa8;font-size:10px;letter-spacing:.08em;display:none;text-shadow:0 1px 3px #000}
+    .viewfinder[data-source="camera"] .corner,.viewfinder[data-source="photo"] .corner{display:block}
+    .preset-section{display:flex;flex-direction:column;gap:9px}
+    .section-head{display:flex;align-items:center;justify-content:space-between}.section-head span{font-size:12px;color:#adbad4;font-weight:650}.section-head small{font-size:11px;color:#8292b0}
+    .presets{display:flex;gap:8px;overflow-x:auto;padding:2px 1px 4px;scrollbar-width:none}.presets::-webkit-scrollbar{display:none}
+    .preset{flex:0 0 auto;border:1px solid #283650;border-radius:13px;padding:11px 15px;background:#111a2b;color:#bbc7dd;font-size:12px;font-weight:710;white-space:nowrap}
+    .preset[aria-pressed="true"]{color:#fff;border-color:#768eff;background:linear-gradient(130deg,#2c468b,#293355);box-shadow:inset 0 0 0 1px #596fcb44}
+    .fine-tune{display:flex;align-items:center;gap:12px;background:#111a2b;border:1px solid #222e44;border-radius:14px;padding:11px 13px}
+    .fine-tune label{font-size:12px;color:#d3dcee;white-space:nowrap}.fine-tune output{font-size:12px;color:#b9cbff;min-width:38px;text-align:right;font-variant-numeric:tabular-nums}
+    input[type="range"]{min-width:0;width:100%;accent-color:#91a9ff;cursor:pointer}
+    .action-row{display:flex;justify-content:space-around;align-items:center;gap:9px;padding:0 5px}
+    .side-btn{background:#172238;border:1px solid #2e405e;color:#e3eafa;border-radius:16px;min-width:88px;padding:12px 11px;font-weight:680;font-size:12px}
+    .shutter{width:76px;height:76px;border-radius:50%;background:#fff;border:5px solid #11182a;box-shadow:0 0 0 3px #dae4fa,0 8px 25px #0009;display:grid;place-items:center;transition:transform .15s}
+    .shutter:active{transform:scale(.92)}.shutter:after{content:"";width:54px;height:54px;border-radius:50%;background:#f4f6fc;box-shadow:inset 0 0 0 1px #d4dbf0}
+    .result-actions{display:none;gap:9px}.result-actions button{flex:1;min-width:0;min-height:48px;padding:12px 7px;font-size:12px}.result-actions .primary{background:linear-gradient(110deg,#849aff,#b49cff);color:#090c17}
+    .actions[data-mode="result"] .action-row{display:none!important}.actions[data-mode="result"] .result-actions{display:flex}
+    .assist{color:#899bb8;text-align:center;font-size:11px;line-height:1.6;margin:0}.assist a{color:#bac9ff}
+    .warning{display:none;font-size:12px;line-height:1.55;color:#ffd8a6;border:1px solid #73572d;background:#3e2b16;border-radius:12px;padding:10px 12px}
+    .secondary-upload{position:relative}.secondary-upload input{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}
+    @media(max-height:740px){.shell{gap:11px}.viewfinder{max-height:calc(100dvh - 320px)}.shutter{width:63px;height:63px}.shutter:after{width:45px;height:45px}}
+    @media(min-width:650px){.shell{padding-top:22px}.viewfinder{max-height:560px}}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div class="brand"><div class="logo" aria-hidden="true">G</div><div><h1>GALAXY TONE</h1><p class="sub">你的私人色調相機</p></div></div>
+      <span class="privacy">● 僅在裝置處理</span>
+    </header>
+
+    <div class="segmented" role="tablist" aria-label="選擇模式">
+      <button id="cameraTab" role="tab" aria-selected="true">◎ 直接拍照</button>
+      <button id="photoTab" role="tab" aria-selected="false">▧ 編輯照片</button>
+    </div>
+
+    <div id="viewfinder" class="viewfinder" data-source="empty" aria-label="拍攝或照片預覽區">
+      <div class="shimmer"></div>
+      <video id="liveVideo" autoplay playsinline muted></video>
+      <img id="photoPreview" alt="待編輯照片">
+      <img id="resultPreview" alt="已完成的照片">
+      <div class="floating-tag" id="liveBadge">GALAXY · 鮮明</div>
+      <div class="corner">SAMSUNG-INSPIRED COLOR · NOT AN OFFICIAL SAMSUNG APP</div>
+      <div id="guide" class="guide">
+        <div class="starter">
+          <div class="camera-emoji" aria-hidden="true">📸</div>
+          <h2 id="guideTitle">打開相機，直接拍</h2>
+          <p id="guideText">先選好喜歡的色調，再按下快門。照片不會上傳到伺服器。</p>
+          <button id="startBtn" class="primary">開啟相機</button>
+        </div>
+      </div>
+    </div>
+
+    <section class="preset-section" aria-label="色調濾鏡">
+      <div class="section-head"><span>色調模式</span><small id="presetHint">模擬三星手機的色彩傾向</small></div>
+      <div class="presets" id="presetChoices">
+        <button class="preset" data-preset="vivid" aria-pressed="true">✦ Galaxy 鮮明</button>
+        <button class="preset" data-preset="natural" aria-pressed="false">◌ Galaxy 自然</button>
+        <button class="preset" data-preset="water" aria-pressed="false">≋ 水域校色</button>
+        <button class="preset" data-preset="clear" aria-pressed="false">◈ 通透清晰</button>
+        <button class="preset" data-preset="original" aria-pressed="false">－ 原始色調</button>
+      </div>
+      <div class="fine-tune">
+        <label for="strength">濾鏡強度</label>
+        <input id="strength" type="range" min="0" max="100" step="5" value="75" aria-label="濾鏡強度">
+        <output id="strengthValue" for="strength">75%</output>
+      </div>
+    </section>
+
+    <section class="actions" id="actions" data-mode="camera" aria-label="相機操作">
+      <div class="action-row" id="cameraActions">
+        <button id="openPhotoBtn" class="side-btn" type="button">▧ 選照片</button>
+        <button id="shutter" class="shutter" type="button" aria-label="拍照" disabled></button>
+        <button id="flipBtn" class="side-btn" type="button">⟳ 翻轉鏡頭</button>
+      </div>
+      <div class="action-row" id="photoActions" style="display:none">
+        <button id="changePhotoBtn" class="side-btn" type="button">換一張</button>
+        <button id="applyBtn" class="primary" type="button" disabled>產生調色照片</button>
+        <button id="returnCameraBtn" class="side-btn" type="button">開相機</button>
+      </div>
+      <div class="result-actions">
+        <button id="againBtn" class="side-btn" type="button">↩ 重拍／重編</button>
+        <button id="downloadBtn" class="side-btn" type="button">下載 JPG</button>
+        <button id="shareBtn" class="primary" type="button">分享／存圖</button>
+      </div>
+    </section>
+    <div id="warning" class="warning" role="alert"></div>
+    <p class="assist" id="assistText">此工具模擬三星偏鮮明、通透的風格，無法完整重現手機原廠 HDR 與多幀演算法。</p>
+    <input id="filePicker" type="file" accept="image/*" hidden>
+  </main>
+
+  <script>
+  'use strict';
+  const el = (id) => document.getElementById(id);
+  const $ = {
+    view: el('viewfinder'), video: el('liveVideo'), guide: el('guide'), title: el('guideTitle'),
+    description: el('guideText'), start: el('startBtn'), cameraTab: el('cameraTab'), photoTab: el('photoTab'),
+    photo: el('photoPreview'), result: el('resultPreview'), file: el('filePicker'),
+    warning: el('warning'), strength: el('strength'), output: el('strengthValue'),
+    badge: el('liveBadge'), shutter: el('shutter'), apply: el('applyBtn'),
+    actions: el('actions'), cameraActions: el('cameraActions'), photoActions: el('photoActions'),
+    flip: el('flipBtn'), share: el('shareBtn'), download: el('downloadBtn')
+  };
+  const presets = {
+    vivid:    {label:'Galaxy · 鮮明', brightness:1.030, contrast:1.090, saturation:1.270, sepia:0.020, hue:0},
+    natural:  {label:'Galaxy · 自然', brightness:1.015, contrast:1.045, saturation:1.090, sepia:0.010, hue:0},
+    water:    {label:'水域校色', brightness:1.055, contrast:1.110, saturation:1.180, sepia:0.060, hue:-5},
+    clear:    {label:'通透清晰', brightness:1.045, contrast:1.130, saturation:1.100, sepia:0.015, hue:0},
+    original: {label:'原始色調', brightness:1, contrast:1, saturation:1, sepia:0, hue:0}
+  };
+  const state = {mode:'camera', facing:'environment', preset:'vivid', strength:75,
+    stream:null, cameraStarted:false, photoURL:null, resultURL:null, resultBlob:null, inputFileName:''};
+
+  function visibleError(message){ $.warning.textContent=message; $.warning.style.display='block'; }
+  function clearError(){ $.warning.textContent=''; $.warning.style.display='none'; }
+  function filterString(){
+    const p=presets[state.preset], t=state.strength/100;
+    if(state.preset==='original' || t===0) return 'none';
+    const f=(n)=>Number(n).toFixed(3);
+    return `brightness(${f(1+(p.brightness-1)*t)}) contrast(${f(1+(p.contrast-1)*t)}) saturate(${f(1+(p.saturation-1)*t)}) sepia(${f(p.sepia*t)}) hue-rotate(${f(p.hue*t)}deg)`;
+  }
+  function updateFilter(){
+    const filter=filterString();
+    $.video.style.filter=filter;
+    $.photo.style.filter=filter;
+    $.badge.textContent=presets[state.preset].label.toUpperCase();
+    $.output.value=state.strength+'%';
+  }
+  function showGuide(heading,description,button){
+    $.view.dataset.source='empty'; $.guide.style.display='grid';
+    $.title.textContent=heading; $.description.textContent=description; $.start.textContent=button;
+  }
+  function hideGuide(){ $.guide.style.display='none'; }
+  function stopCamera(){
+    if(state.stream){state.stream.getTracks().forEach(track=>track.stop());state.stream=null;}
+    $.video.srcObject=null;
+    $.shutter.disabled=true;
+  }
+  async function startCamera(){
+    clearError();
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      visibleError('無法啟動相機。請把網站發布到 HTTPS 網址，並使用 iPhone Safari 開啟。從檔案預覽或聊天內嵌頁面開啟可能無法取得相機權限。');
+      return;
+    }
+    stopCamera();
+    $.start.disabled=true; $.start.textContent='正在開啟…';
+    const ideal={audio:false,video:{facingMode:{ideal:state.facing},width:{ideal:3840},height:{ideal:2160}}};
+    try{
+      try{state.stream=await navigator.mediaDevices.getUserMedia(ideal)}
+      catch(err){
+        if(err.name==='OverconstrainedError' || err.name==='NotFoundError')
+          state.stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:state.facing}});
+        else throw err;
+      }
+      $.video.srcObject=state.stream;
+      await $.video.play();
+      $.video.classList.toggle('selfie',state.facing==='user');
+      state.cameraStarted=true;
+      hideGuide(); $.view.dataset.source='camera';
+      $.shutter.disabled=false;
+    }catch(error){
+      console.warn('Camera could not start:',error);
+      const denied=error.name==='NotAllowedError'||error.name==='PermissionDeniedError';
+      visibleError(denied?'相機權限被拒絕了。請在 Safari 網站設定允許相機後重試。':'目前無法啟動相機；可改用「編輯照片」匯入照片調色。');
+      showGuide('無法開啟相機','請確認已允許相機存取，或切換編輯照片。','重試開啟相機');
+    }finally{$.start.disabled=false; $.start.textContent='開啟相機';}
+  }
+  function clearResult(){
+    if(state.resultURL){URL.revokeObjectURL(state.resultURL);state.resultURL=null;}
+    state.resultBlob=null;
+    $.result.removeAttribute('src');
+  }
+  async function cameraMode(){
+    clearError();clearResult();state.mode='camera';
+    $.cameraTab.setAttribute('aria-selected','true');$.photoTab.setAttribute('aria-selected','false');
+    $.actions.dataset.mode='camera';$.cameraActions.style.display='flex';$.photoActions.style.display='none';
+    if(state.stream?.active){$.view.dataset.source='camera';hideGuide();}
+    else{
+      showGuide('打開相機，直接拍','先選好喜歡的色調，再按下快門。照片不會上傳到伺服器。','開啟相機');
+      if(state.cameraStarted) await startCamera();
+    }
+  }
+  function photoMode(){
+    clearError();clearResult();state.mode='photo';stopCamera();
+    $.photoTab.setAttribute('aria-selected','true');$.cameraTab.setAttribute('aria-selected','false');
+    $.actions.dataset.mode='photo';$.cameraActions.style.display='none';$.photoActions.style.display='flex';
+    if($.photo.getAttribute('src')){$.view.dataset.source='photo';hideGuide();$.apply.disabled=false;}
+    else{showGuide('把舊照片調成 Galaxy 色調','選擇手機裡的照片，立即預覽效果。照片不會上傳。','選擇照片');$.apply.disabled=true;}
+  }
+  function picker(){ $.file.value='';$.file.click(); }
+  async function loadPhoto(file){
+    if(!file)return;
+    if(!file.type.startsWith('image/')){visibleError('請選擇 JPG、PNG 或手機支援的圖片格式。');return;}
+    clearError();clearResult();
+    const previous=state.photoURL;
+    const objectURL=URL.createObjectURL(file);
+    $.photo.onload=()=>{if(previous)URL.revokeObjectURL(previous);state.photoURL=objectURL;$.view.dataset.source='photo';hideGuide();$.apply.disabled=false;};
+    $.photo.onerror=()=>{URL.revokeObjectURL(objectURL);visibleError('圖片無法載入，請改選一張 JPG 或 PNG。');};
+    $.photo.src=objectURL;
+    state.inputFileName=file.name.replace(/\.[^.]+$/,'');
+  }
+  function renderImage(){
+    const isCamera=state.mode==='camera';
+    const source=isCamera?$.video:$.photo;
+    const sourceW=isCamera?$.video.videoWidth:$.photo.naturalWidth;
+    const sourceH=isCamera?$.video.videoHeight:$.photo.naturalHeight;
+    if(!sourceW||!sourceH)throw new Error('圖片尚未準備完成');
+    const canvas=document.createElement('canvas');
+    let sx=0,sy=0,sw=sourceW,sh=sourceH;
+    if(isCamera){
+      const ratio=$.view.clientWidth/$.view.clientHeight;
+      if(sourceW/sourceH>ratio){sw=sourceH*ratio;sx=(sourceW-sw)/2;}
+      else{sh=sourceW/ratio;sy=(sourceH-sh)/2;}
+    }
+    // Prevent unbounded iPhone canvas memory use while preserving the actual available resolution.
+    const maxSide=4096;
+    const scale=Math.min(1,maxSide/Math.max(sw,sh));
+    canvas.width=Math.max(1,Math.round(sw*scale));
+    canvas.height=Math.max(1,Math.round(sh*scale));
+    const ctx=canvas.getContext('2d',{alpha:false});
+    if(!ctx)throw new Error('此瀏覽器無法處理圖片');
+    if('filter' in ctx)ctx.filter=filterString();
+    if(isCamera&&state.facing==='user'){
+      ctx.translate(canvas.width,0);ctx.scale(-1,1);
+    }
+    ctx.drawImage(source,sx,sy,sw,sh,0,0,canvas.width,canvas.height);
+    return canvas;
+  }
+  async function takePhoto(){
+    if(state.mode==='camera'&&!state.stream?.active)return;
+    if(state.mode==='photo'&&!$.photo.naturalWidth)return;
+    clearError();
+    const workingBtn=state.mode==='camera'?$.shutter:$.apply;
+    workingBtn.disabled=true;
+    try{
+      const canvas=renderImage();
+      const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',0.94));
+      if(!blob)throw new Error('無法輸出照片');
+      clearResult();state.resultBlob=blob;state.resultURL=URL.createObjectURL(blob);
+      $.result.src=state.resultURL;
+      $.view.dataset.source='result';hideGuide();$.actions.dataset.mode='result';
+      if(state.mode==='camera')stopCamera();
+    }catch(err){visibleError('處理失敗：'+err.message);}
+    finally{workingBtn.disabled=false;}
+  }
+  function currentName(){
+    const stamp=new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
+    return `${state.inputFileName||'GalaxyTone'}-${stamp}.jpg`;
+  }
+  function download(){
+    if(!state.resultBlob)return;
+    const a=document.createElement('a');a.href=state.resultURL;a.download=currentName();
+    document.body.appendChild(a);a.click();a.remove();
+  }
+  async function share(){
+    if(!state.resultBlob)return;
+    const file=new File([state.resultBlob],currentName(),{type:'image/jpeg'});
+    if(navigator.canShare?.({files:[file]})&&navigator.share){
+      try{await navigator.share({files:[file]});return;}
+      catch(err){if(err.name==='AbortError')return;}
+    }
+    download();
+    visibleError('已改用下載功能。若要存進 iPhone「照片」App，可在 Safari 開啟下載的圖片，再使用「分享 → 儲存影像」。');
+  }
+  async function flip(){
+    state.facing=state.facing==='environment'?'user':'environment';
+    if(state.stream?.active)await startCamera();
+  }
+  function again(){
+    clearResult();clearError();
+    if(state.mode==='camera')cameraMode();
+    else photoMode();
+  }
+
+  $.start.addEventListener('click',()=>state.mode==='camera'?startCamera():picker());
+  $.cameraTab.addEventListener('click',cameraMode);
+  $.photoTab.addEventListener('click',photoMode);
+  el('openPhotoBtn').addEventListener('click',()=>{photoMode();picker();});
+  el('changePhotoBtn').addEventListener('click',picker);
+  el('returnCameraBtn').addEventListener('click',cameraMode);
+  $.file.addEventListener('change',e=>{if(e.target.files?.[0]){photoMode();loadPhoto(e.target.files[0]);}});
+  $.shutter.addEventListener('click',takePhoto);
+  $.apply.addEventListener('click',takePhoto);
+  $.flip.addEventListener('click',flip);
+  $.download.addEventListener('click',download);
+  $.share.addEventListener('click',share);
+  el('againBtn').addEventListener('click',again);
+  el('presetChoices').addEventListener('click',e=>{
+    const button=e.target.closest('button[data-preset]');if(!button)return;
+    state.preset=button.dataset.preset;
+    document.querySelectorAll('button[data-preset]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));
+    updateFilter();
+  });
+  $.strength.addEventListener('input',e=>{state.strength=Number(e.target.value);updateFilter();});
+  document.addEventListener('visibilitychange',()=>{
+    if(document.hidden && state.stream){stopCamera();if(state.mode==='camera')showGuide('繼續拍照','回到相機後，按下面按鈕重新啟用鏡頭。','重新開啟相機');}
+  });
+  window.addEventListener('pagehide',stopCamera);
+  updateFilter();
+  if('serviceWorker' in navigator && location.protocol==='https:')
+    window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+  </script>
+</body>
+</html>
