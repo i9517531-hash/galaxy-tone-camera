@@ -138,7 +138,8 @@
     warning: el('warning'), strength: el('strength'), output: el('strengthValue'),
     badge: el('liveBadge'), shutter: el('shutter'), apply: el('applyBtn'),
     actions: el('actions'), cameraActions: el('cameraActions'), photoActions: el('photoActions'),
-    flip: el('flipBtn'), share: el('shareBtn'), download: el('downloadBtn')
+    flip: el('flipBtn'), share: el('shareBtn'), download: el('downloadBtn'),
+    assist: el('assistText')
   };
   const presets = {
     vivid:    {label:'Galaxy · 鮮明', brightness:1.030, contrast:1.090, saturation:1.270, sepia:0.020, hue:0},
@@ -147,16 +148,30 @@
     clear:    {label:'通透清晰', brightness:1.045, contrast:1.130, saturation:1.100, sepia:0.015, hue:0},
     original: {label:'原始色調', brightness:1, contrast:1, saturation:1, sepia:0, hue:0}
   };
-  const state = {mode:'camera', facing:'environment', preset:'vivid', strength:75,
-    stream:null, cameraStarted:false, photoURL:null, resultURL:null, resultBlob:null, inputFileName:''};
+  const state = {
+    mode:'camera', facing:'environment', preset:'vivid', strength:75,
+    stream:null, cameraStarted:false, photoURL:null, resultURL:null, resultBlob:null, inputFileName:'',
+    cameraResolution:'', resultKind:''
+  };
 
   function visibleError(message){ $.warning.textContent=message; $.warning.style.display='block'; }
   function clearError(){ $.warning.textContent=''; $.warning.style.display='none'; }
-  function filterString(){
+  function setAssist(message){ if($.assist) $.assist.textContent=message; }
+  function filterParams(){
     const p=presets[state.preset], t=state.strength/100;
-    if(state.preset==='original' || t===0) return 'none';
-    const f=(n)=>Number(n).toFixed(3);
-    return `brightness(${f(1+(p.brightness-1)*t)}) contrast(${f(1+(p.contrast-1)*t)}) saturate(${f(1+(p.saturation-1)*t)}) sepia(${f(p.sepia*t)}) hue-rotate(${f(p.hue*t)}deg)`;
+    return {
+      brightness:1+(p.brightness-1)*t,
+      contrast:1+(p.contrast-1)*t,
+      saturation:1+(p.saturation-1)*t,
+      sepia:p.sepia*t,
+      hue:p.hue*t
+    };
+  }
+  function filterString(){
+    const f=filterParams();
+    if(state.preset==='original' || state.strength===0) return 'none';
+    const n=(v)=>Number(v).toFixed(3);
+    return `brightness(${n(f.brightness)}) contrast(${n(f.contrast)}) saturate(${n(f.saturation)}) sepia(${n(f.sepia)}) hue-rotate(${n(f.hue)}deg)`;
   }
   function updateFilter(){
     const filter=filterString();
@@ -175,6 +190,31 @@
     $.video.srcObject=null;
     $.shutter.disabled=true;
   }
+  function trackSummary(track){
+    const s=track?.getSettings?.()||{};
+    if(!s.width || !s.height) return '';
+    return `${s.width} × ${s.height}`;
+  }
+  async function maximizeTrack(track){
+    if(!track?.applyConstraints) return;
+    const caps=track.getCapabilities?.()||{};
+    const tries=[];
+    if(caps.width?.max && caps.height?.max){
+      const mw=caps.width.max, mh=caps.height.max;
+      tries.push({width:{ideal:mw},height:{ideal:mh}});
+      tries.push({advanced:[{width:mw,height:mh}]});
+    }
+    tries.push({advanced:[
+      {width:4032,height:3024},
+      {width:3840,height:2160},
+      {width:3024,height:3024},
+      {width:2560,height:1920},
+      {width:1920,height:1440}
+    ]});
+    for(const c of tries){
+      try{await track.applyConstraints(c);}catch(err){}
+    }
+  }
   async function startCamera(){
     clearError();
     if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
@@ -183,30 +223,41 @@
     }
     stopCamera();
     $.start.disabled=true; $.start.textContent='正在開啟…';
-    const ideal={audio:false,video:{facingMode:{ideal:state.facing},width:{ideal:3840},height:{ideal:2160}}};
+    const candidates=[
+      {audio:false,video:{facingMode:{ideal:state.facing},width:{ideal:4032},height:{ideal:3024},aspectRatio:{ideal:4/3}}},
+      {audio:false,video:{facingMode:{ideal:state.facing},width:{ideal:3840},height:{ideal:2160}}},
+      {audio:false,video:{facingMode:{ideal:state.facing},width:{ideal:2560},height:{ideal:1920}}},
+      {audio:false,video:{facingMode:state.facing}}
+    ];
     try{
-      try{state.stream=await navigator.mediaDevices.getUserMedia(ideal)}
-      catch(err){
-        if(err.name==='OverconstrainedError' || err.name==='NotFoundError')
-          state.stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:state.facing}});
-        else throw err;
+      let lastErr=null;
+      for(const constraints of candidates){
+        try{state.stream=await navigator.mediaDevices.getUserMedia(constraints);break;}
+        catch(err){lastErr=err;}
       }
+      if(!state.stream) throw lastErr || new Error('無法取得相機串流');
+      const [track]=state.stream.getVideoTracks();
+      await maximizeTrack(track);
+      state.cameraResolution=trackSummary(track);
       $.video.srcObject=state.stream;
       await $.video.play();
       $.video.classList.toggle('selfie',state.facing==='user');
       state.cameraStarted=true;
       hideGuide(); $.view.dataset.source='camera';
       $.shutter.disabled=false;
+      if(state.cameraResolution) setAssist(`目前相機輸出解析度：約 ${state.cameraResolution}。已盡量向 iPhone Safari 請求最高可用解析度；實際上限仍受瀏覽器限制。`);
+      else setAssist('已盡量向 iPhone Safari 請求最高可用解析度；實際上限仍受瀏覽器限制。');
     }catch(error){
       console.warn('Camera could not start:',error);
       const denied=error.name==='NotAllowedError'||error.name==='PermissionDeniedError';
       visibleError(denied?'相機權限被拒絕了。請在 Safari 網站設定允許相機後重試。':'目前無法啟動相機；可改用「編輯照片」匯入照片調色。');
       showGuide('無法開啟相機','請確認已允許相機存取，或切換編輯照片。','重試開啟相機');
+      setAssist('此工具模擬三星偏鮮明、通透的風格，無法完整重現手機原廠 HDR 與多幀演算法。');
     }finally{$.start.disabled=false; $.start.textContent='開啟相機';}
   }
   function clearResult(){
     if(state.resultURL){URL.revokeObjectURL(state.resultURL);state.resultURL=null;}
-    state.resultBlob=null;
+    state.resultBlob=null; state.resultKind='';
     $.result.removeAttribute('src');
   }
   async function cameraMode(){
@@ -225,6 +276,7 @@
     $.actions.dataset.mode='photo';$.cameraActions.style.display='none';$.photoActions.style.display='flex';
     if($.photo.getAttribute('src')){$.view.dataset.source='photo';hideGuide();$.apply.disabled=false;}
     else{showGuide('把舊照片調成 Galaxy 色調','選擇手機裡的照片，立即預覽效果。照片不會上傳。','選擇照片');$.apply.disabled=true;}
+    setAssist('匯入照片後，下載與分享都會輸出真正已調色的 JPG，不再只是預覽效果。');
   }
   function picker(){ $.file.value='';$.file.click(); }
   async function loadPhoto(file){
@@ -233,37 +285,123 @@
     clearError();clearResult();
     const previous=state.photoURL;
     const objectURL=URL.createObjectURL(file);
-    $.photo.onload=()=>{if(previous)URL.revokeObjectURL(previous);state.photoURL=objectURL;$.view.dataset.source='photo';hideGuide();$.apply.disabled=false;};
+    $.photo.onload=()=>{
+      if(previous)URL.revokeObjectURL(previous);
+      state.photoURL=objectURL;
+      $.view.dataset.source='photo';hideGuide();$.apply.disabled=false;
+      const msg=`已載入 ${$.photo.naturalWidth} × ${$.photo.naturalHeight} 的照片。輸出時會盡量保留原始尺寸（過大時才會為了避免 iPhone 記憶體不足而縮小）。`;
+      setAssist(msg);
+    };
     $.photo.onerror=()=>{URL.revokeObjectURL(objectURL);visibleError('圖片無法載入，請改選一張 JPG 或 PNG。');};
     $.photo.src=objectURL;
     state.inputFileName=file.name.replace(/\.[^.]+$/,'');
   }
-  function renderImage(){
-    const isCamera=state.mode==='camera';
-    const source=isCamera?$.video:$.photo;
-    const sourceW=isCamera?$.video.videoWidth:$.photo.naturalWidth;
-    const sourceH=isCamera?$.video.videoHeight:$.photo.naturalHeight;
-    if(!sourceW||!sourceH)throw new Error('圖片尚未準備完成');
-    const canvas=document.createElement('canvas');
-    let sx=0,sy=0,sw=sourceW,sh=sourceH;
+  function limitDimensions(sw,sh){
+    const maxSide=4096;
+    const maxPixels=14000000;
+    let scale=1;
+    if(Math.max(sw,sh)>maxSide) scale=Math.min(scale,maxSide/Math.max(sw,sh));
+    if(sw*sh>maxPixels) scale=Math.min(scale,Math.sqrt(maxPixels/(sw*sh)));
+    return {width:Math.max(1,Math.round(sw*scale)),height:Math.max(1,Math.round(sh*scale))};
+  }
+  function clampByte(v){ return v<0?0:v>255?255:Math.round(v); }
+  function getHueMatrix(deg){
+    const rad=deg*Math.PI/180, cos=Math.cos(rad), sin=Math.sin(rad);
+    return [
+      0.213+cos*0.787-sin*0.213, 0.715-cos*0.715-sin*0.715, 0.072-cos*0.072+sin*0.928,
+      0.213-cos*0.213+sin*0.143, 0.715+cos*0.285+sin*0.140, 0.072-cos*0.072-sin*0.283,
+      0.213-cos*0.213-sin*0.787, 0.715-cos*0.715+sin*0.715, 0.072+cos*0.928+sin*0.072
+    ];
+  }
+  function applyPixelFilter(canvas){
+    if(state.preset==='original' || state.strength===0) return;
+    const ctx=canvas.getContext('2d',{willReadFrequently:true});
+    if(!ctx) return;
+    const img=ctx.getImageData(0,0,canvas.width,canvas.height);
+    const data=img.data;
+    const f=filterParams();
+    const hueMatrix=f.hue?getHueMatrix(f.hue):null;
+    for(let i=0;i<data.length;i+=4){
+      let r=data[i], g=data[i+1], b=data[i+2];
+      r*=f.brightness; g*=f.brightness; b*=f.brightness;
+      r=(r-128)*f.contrast+128; g=(g-128)*f.contrast+128; b=(b-128)*f.contrast+128;
+      const gray=0.2126*r+0.7152*g+0.0722*b;
+      r=gray+(r-gray)*f.saturation; g=gray+(g-gray)*f.saturation; b=gray+(b-gray)*f.saturation;
+      if(f.sepia){
+        const sr=r*0.393+g*0.769+b*0.189;
+        const sg=r*0.349+g*0.686+b*0.168;
+        const sb=r*0.272+g*0.534+b*0.131;
+        r=r*(1-f.sepia)+sr*f.sepia;
+        g=g*(1-f.sepia)+sg*f.sepia;
+        b=b*(1-f.sepia)+sb*f.sepia;
+      }
+      if(hueMatrix){
+        const nr=r*hueMatrix[0]+g*hueMatrix[1]+b*hueMatrix[2];
+        const ng=r*hueMatrix[3]+g*hueMatrix[4]+b*hueMatrix[5];
+        const nb=r*hueMatrix[6]+g*hueMatrix[7]+b*hueMatrix[8];
+        r=nr; g=ng; b=nb;
+      }
+      data[i]=clampByte(r); data[i+1]=clampByte(g); data[i+2]=clampByte(b);
+    }
+    ctx.putImageData(img,0,0);
+  }
+  function createCanvasForSource(source, sourceW, sourceH, isCamera, mirror=false){
+    if(!sourceW||!sourceH) throw new Error('圖片尚未準備完成');
+    let sx=0, sy=0, sw=sourceW, sh=sourceH;
     if(isCamera){
       const ratio=$.view.clientWidth/$.view.clientHeight;
-      if(sourceW/sourceH>ratio){sw=sourceH*ratio;sx=(sourceW-sw)/2;}
-      else{sh=sourceW/ratio;sy=(sourceH-sh)/2;}
+      if(sourceW/sourceH>ratio){ sw=sourceH*ratio; sx=(sourceW-sw)/2; }
+      else { sh=sourceW/ratio; sy=(sourceH-sh)/2; }
     }
-    // Prevent unbounded iPhone canvas memory use while preserving the actual available resolution.
-    const maxSide=4096;
-    const scale=Math.min(1,maxSide/Math.max(sw,sh));
-    canvas.width=Math.max(1,Math.round(sw*scale));
-    canvas.height=Math.max(1,Math.round(sh*scale));
-    const ctx=canvas.getContext('2d',{alpha:false});
-    if(!ctx)throw new Error('此瀏覽器無法處理圖片');
-    if('filter' in ctx)ctx.filter=filterString();
-    if(isCamera&&state.facing==='user'){
-      ctx.translate(canvas.width,0);ctx.scale(-1,1);
-    }
+    const out=limitDimensions(sw,sh);
+    const canvas=document.createElement('canvas');
+    canvas.width=out.width; canvas.height=out.height;
+    const ctx=canvas.getContext('2d',{alpha:false,willReadFrequently:true});
+    if(!ctx) throw new Error('此瀏覽器無法處理圖片');
+    if(isCamera && mirror){ ctx.translate(canvas.width,0); ctx.scale(-1,1); }
     ctx.drawImage(source,sx,sy,sw,sh,0,0,canvas.width,canvas.height);
+    applyPixelFilter(canvas);
     return canvas;
+  }
+  async function blobToImage(blob){
+    const url=URL.createObjectURL(blob);
+    try{
+      const img=new Image();
+      img.decoding='async';
+      img.src=url;
+      if(img.decode) await img.decode();
+      else await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;});
+      return img;
+    } finally { URL.revokeObjectURL(url); }
+  }
+  async function renderImage(){
+    if(state.mode==='camera'){
+      const track=state.stream?.getVideoTracks?.()[0];
+      if(track && typeof window.ImageCapture!=='undefined'){
+        try{
+          const capture=new ImageCapture(track);
+          const photoBlob=await capture.takePhoto();
+          const img=await blobToImage(photoBlob);
+          state.resultKind='still-photo';
+          return createCanvasForSource(img,img.naturalWidth||img.width,img.naturalHeight||img.height,true,false);
+        }catch(err){
+          console.warn('ImageCapture unavailable, falling back to video frame.',err);
+        }
+      }
+      state.resultKind='video-frame';
+      return createCanvasForSource($.video,$.video.videoWidth,$.video.videoHeight,true,state.facing==='user');
+    }
+    state.resultKind='uploaded-photo';
+    return createCanvasForSource($.photo,$.photo.naturalWidth,$.photo.naturalHeight,false,false);
+  }
+  async function canvasToBlob(canvas){
+    return await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',0.98));
+  }
+  async function buildResultBlob(){
+    const canvas=await renderImage();
+    const blob=await canvasToBlob(canvas);
+    if(!blob) throw new Error('無法輸出照片');
+    return {canvas, blob};
   }
   async function takePhoto(){
     if(state.mode==='camera'&&!state.stream?.active)return;
@@ -272,42 +410,54 @@
     const workingBtn=state.mode==='camera'?$.shutter:$.apply;
     workingBtn.disabled=true;
     try{
-      const canvas=renderImage();
-      const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',0.94));
-      if(!blob)throw new Error('無法輸出照片');
-      clearResult();state.resultBlob=blob;state.resultURL=URL.createObjectURL(blob);
+      const {canvas, blob}=await buildResultBlob();
+      clearResult(); state.resultBlob=blob; state.resultURL=URL.createObjectURL(blob);
       $.result.src=state.resultURL;
-      $.view.dataset.source='result';hideGuide();$.actions.dataset.mode='result';
-      if(state.mode==='camera')stopCamera();
-    }catch(err){visibleError('處理失敗：'+err.message);}
-    finally{workingBtn.disabled=false;}
+      $.view.dataset.source='result'; hideGuide(); $.actions.dataset.mode='result';
+      if(state.mode==='camera') stopCamera();
+      setAssist(`輸出完成：${canvas.width} × ${canvas.height}，JPG 高畫質輸出。${state.resultKind==='video-frame'?' 你的瀏覽器目前使用視訊畫面擷取，因此仍可能比 iPhone 原生相機略低。':''}`);
+    }catch(err){ visibleError('處理失敗：'+err.message); }
+    finally{ workingBtn.disabled=false; }
   }
   function currentName(){
     const stamp=new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
     return `${state.inputFileName||'GalaxyTone'}-${stamp}.jpg`;
   }
-  function download(){
-    if(!state.resultBlob)return;
-    const a=document.createElement('a');a.href=state.resultURL;a.download=currentName();
-    document.body.appendChild(a);a.click();a.remove();
+  async function ensureResultBlob(){
+    if(state.resultBlob && state.resultURL) return;
+    const {blob}=await buildResultBlob();
+    clearResult();
+    state.resultBlob=blob; state.resultURL=URL.createObjectURL(blob);
+    $.result.src=state.resultURL;
+  }
+  async function download(){
+    try{
+      await ensureResultBlob();
+      if(!state.resultBlob||!state.resultURL) return;
+      const a=document.createElement('a'); a.href=state.resultURL; a.download=currentName();
+      document.body.appendChild(a); a.click(); a.remove();
+    }catch(err){ visibleError('下載失敗：'+err.message); }
   }
   async function share(){
-    if(!state.resultBlob)return;
-    const file=new File([state.resultBlob],currentName(),{type:'image/jpeg'});
-    if(navigator.canShare?.({files:[file]})&&navigator.share){
-      try{await navigator.share({files:[file]});return;}
-      catch(err){if(err.name==='AbortError')return;}
-    }
-    download();
-    visibleError('已改用下載功能。若要存進 iPhone「照片」App，可在 Safari 開啟下載的圖片，再使用「分享 → 儲存影像」。');
+    try{
+      await ensureResultBlob();
+      if(!state.resultBlob) return;
+      const file=new File([state.resultBlob],currentName(),{type:'image/jpeg'});
+      if(navigator.canShare?.({files:[file]})&&navigator.share){
+        try{ await navigator.share({files:[file]}); return; }
+        catch(err){ if(err.name==='AbortError')return; }
+      }
+      await download();
+      visibleError('已改用下載功能。若要存進 iPhone「照片」App，可在 Safari 開啟下載的圖片，再使用「分享 → 儲存影像」。');
+    }catch(err){ visibleError('分享失敗：'+err.message); }
   }
   async function flip(){
     state.facing=state.facing==='environment'?'user':'environment';
-    if(state.stream?.active)await startCamera();
+    if(state.stream?.active) await startCamera();
   }
   function again(){
-    clearResult();clearError();
-    if(state.mode==='camera')cameraMode();
+    clearResult(); clearError();
+    if(state.mode==='camera') cameraMode();
     else photoMode();
   }
 
@@ -317,7 +467,7 @@
   el('openPhotoBtn').addEventListener('click',()=>{photoMode();picker();});
   el('changePhotoBtn').addEventListener('click',picker);
   el('returnCameraBtn').addEventListener('click',cameraMode);
-  $.file.addEventListener('change',e=>{if(e.target.files?.[0]){photoMode();loadPhoto(e.target.files[0]);}});
+  $.file.addEventListener('change',e=>{ if(e.target.files?.[0]){ photoMode(); loadPhoto(e.target.files[0]); } });
   $.shutter.addEventListener('click',takePhoto);
   $.apply.addEventListener('click',takePhoto);
   $.flip.addEventListener('click',flip);
@@ -325,19 +475,24 @@
   $.share.addEventListener('click',share);
   el('againBtn').addEventListener('click',again);
   el('presetChoices').addEventListener('click',e=>{
-    const button=e.target.closest('button[data-preset]');if(!button)return;
+    const button=e.target.closest('button[data-preset]'); if(!button) return;
     state.preset=button.dataset.preset;
     document.querySelectorAll('button[data-preset]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));
     updateFilter();
   });
-  $.strength.addEventListener('input',e=>{state.strength=Number(e.target.value);updateFilter();});
+  $.strength.addEventListener('input',e=>{ state.strength=Number(e.target.value); updateFilter(); });
   document.addEventListener('visibilitychange',()=>{
-    if(document.hidden && state.stream){stopCamera();if(state.mode==='camera')showGuide('繼續拍照','回到相機後，按下面按鈕重新啟用鏡頭。','重新開啟相機');}
+    if(document.hidden && state.stream){
+      stopCamera();
+      if(state.mode==='camera') showGuide('繼續拍照','回到相機後，按下面按鈕重新啟用鏡頭。','重新開啟相機');
+    }
   });
   window.addEventListener('pagehide',stopCamera);
   updateFilter();
+  setAssist('此工具模擬三星偏鮮明、通透的風格。現在會盡量以較高解析度拍攝，並在下載時輸出真正已調色的 JPG。');
   if('serviceWorker' in navigator && location.protocol==='https:')
     window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
   </script>
+
 </body>
 </html>
