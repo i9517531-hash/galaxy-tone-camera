@@ -78,7 +78,7 @@
       <video id="liveVideo" autoplay playsinline muted></video>
       <img id="photoPreview" alt="待編輯照片">
       <img id="resultPreview" alt="已完成的照片">
-      <div class="floating-tag" id="liveBadge">GALAXY · 鮮明</div>
+      <div class="floating-tag" id="liveBadge">討喜亮顏</div>
       <div class="corner">SAMSUNG-INSPIRED COLOR · NOT AN OFFICIAL SAMSUNG APP</div>
       <div id="guide" class="guide">
         <div class="starter">
@@ -91,9 +91,10 @@
     </div>
 
     <section class="preset-section" aria-label="色調濾鏡">
-      <div class="section-head"><span>色調模式</span><small id="presetHint">模擬三星手機的色彩傾向</small></div>
+      <div class="section-head"><span>色調模式</span><small id="presetHint">討喜、乾淨、偏亮顏的手機色調</small></div>
       <div class="presets" id="presetChoices">
-        <button class="preset" data-preset="vivid" aria-pressed="true">✦ Galaxy 鮮明</button>
+        <button class="preset" data-preset="pretty" aria-pressed="true">☼ 討喜亮顏</button>
+        <button class="preset" data-preset="vivid" aria-pressed="false">✦ Galaxy 鮮明</button>
         <button class="preset" data-preset="natural" aria-pressed="false">◌ Galaxy 自然</button>
         <button class="preset" data-preset="water" aria-pressed="false">≋ 水域校色</button>
         <button class="preset" data-preset="clear" aria-pressed="false">◈ 通透清晰</button>
@@ -142,14 +143,15 @@
     assist: el('assistText')
   };
   const presets = {
-    vivid:    {label:'Galaxy · 鮮明', brightness:1.030, contrast:1.090, saturation:1.270, sepia:0.020, hue:0},
-    natural:  {label:'Galaxy · 自然', brightness:1.015, contrast:1.045, saturation:1.090, sepia:0.010, hue:0},
-    water:    {label:'水域校色', brightness:1.055, contrast:1.110, saturation:1.180, sepia:0.060, hue:-5},
-    clear:    {label:'通透清晰', brightness:1.045, contrast:1.130, saturation:1.100, sepia:0.015, hue:0},
-    original: {label:'原始色調', brightness:1, contrast:1, saturation:1, sepia:0, hue:0}
+    pretty:   {label:'討喜亮顏', brightness:1.055, contrast:1.095, saturation:1.240, sepia:0.012, hue:-1, vibrance:0.18, cool:-0.015, blueBoost:0.05, curve:0.06, skinWarm:0.11, skinSoft:0.08, shadowLift:0.07},
+    vivid:    {label:'Galaxy · 鮮明', brightness:1.045, contrast:1.125, saturation:1.360, sepia:0.008, hue:-1, vibrance:0.22, cool:0.015, blueBoost:0.12, curve:0.08, skinWarm:0.06, skinSoft:0.04, shadowLift:0.03},
+    natural:  {label:'Galaxy · 自然', brightness:1.028, contrast:1.070, saturation:1.150, sepia:0.006, hue:-1, vibrance:0.10, cool:0, blueBoost:0.05, curve:0.04, skinWarm:0.08, skinSoft:0.08, shadowLift:0.06},
+    water:    {label:'水域校色', brightness:1.055, contrast:1.160, saturation:1.280, sepia:0.018, hue:-6, vibrance:0.16, cool:0.05, blueBoost:0.22, curve:0.06, skinWarm:0.04, skinSoft:0.03, shadowLift:0.03},
+    clear:    {label:'通透清晰', brightness:1.042, contrast:1.120, saturation:1.160, sepia:0.004, hue:0, vibrance:0.08, cool:0.00, blueBoost:0.05, curve:0.08, skinWarm:0.05, skinSoft:0.03, shadowLift:0.08},
+    original: {label:'原始色調', brightness:1, contrast:1, saturation:1, sepia:0, hue:0, vibrance:0, cool:0, blueBoost:0, curve:0, skinWarm:0, skinSoft:0, shadowLift:0}
   };
   const state = {
-    mode:'camera', facing:'environment', preset:'vivid', strength:75,
+    mode:'camera', facing:'environment', preset:'pretty', strength:75,
     stream:null, cameraStarted:false, photoURL:null, resultURL:null, resultBlob:null, inputFileName:'',
     cameraResolution:'', resultKind:''
   };
@@ -164,7 +166,14 @@
       contrast:1+(p.contrast-1)*t,
       saturation:1+(p.saturation-1)*t,
       sepia:p.sepia*t,
-      hue:p.hue*t
+      hue:p.hue*t,
+      vibrance:(p.vibrance||0)*t,
+      cool:(p.cool||0)*t,
+      blueBoost:(p.blueBoost||0)*t,
+      curve:(p.curve||0)*t,
+      skinWarm:(p.skinWarm||0)*t,
+      skinSoft:(p.skinSoft||0)*t,
+      shadowLift:(p.shadowLift||0)*t
     };
   }
   function filterString(){
@@ -198,16 +207,21 @@
   async function maximizeTrack(track){
     if(!track?.applyConstraints) return;
     const caps=track.getCapabilities?.()||{};
+    const tries=[];
     if(caps.width?.max && caps.height?.max){
-      try{
-        await track.applyConstraints({
-          width:{ideal:caps.width.max},
-          height:{ideal:caps.height.max},
-          aspectRatio:{ideal:4/3}
-        });
-      }catch(err){
-        // 保留原本成功取得的串流尺寸，避免誤降解析度。
-      }
+      const mw=caps.width.max, mh=caps.height.max;
+      tries.push({width:{ideal:mw},height:{ideal:mh}});
+      tries.push({advanced:[{width:mw,height:mh}]});
+    }
+    tries.push({advanced:[
+      {width:4032,height:3024},
+      {width:3840,height:2160},
+      {width:3024,height:3024},
+      {width:2560,height:1920},
+      {width:1920,height:1440}
+    ]});
+    for(const c of tries){
+      try{await track.applyConstraints(c);}catch(err){}
     }
   }
   async function startCamera(){
@@ -308,6 +322,12 @@
       0.213-cos*0.213-sin*0.787, 0.715-cos*0.715+sin*0.715, 0.072+cos*0.928+sin*0.072
     ];
   }
+  function toneCurveValue(v, amount){
+    if(!amount) return v;
+    const x=v/255;
+    const curved=x + Math.sin((x-0.5)*Math.PI)*amount*0.5;
+    return clampByte(curved*255);
+  }
   function applyPixelFilter(canvas){
     if(state.preset==='original' || state.strength===0) return;
     const ctx=canvas.getContext('2d',{willReadFrequently:true});
@@ -318,10 +338,24 @@
     const hueMatrix=f.hue?getHueMatrix(f.hue):null;
     for(let i=0;i<data.length;i+=4){
       let r=data[i], g=data[i+1], b=data[i+2];
+      const isSkin=r>95 && g>40 && b>20 && r>g && g>b && (r-b)>15;
+      const luma0=0.2126*r+0.7152*g+0.0722*b;
       r*=f.brightness; g*=f.brightness; b*=f.brightness;
       r=(r-128)*f.contrast+128; g=(g-128)*f.contrast+128; b=(b-128)*f.contrast+128;
-      const gray=0.2126*r+0.7152*g+0.0722*b;
+      let gray=0.2126*r+0.7152*g+0.0722*b;
       r=gray+(r-gray)*f.saturation; g=gray+(g-gray)*f.saturation; b=gray+(b-gray)*f.saturation;
+      if(f.vibrance){
+        const maxC=Math.max(r,g,b), minC=Math.min(r,g,b);
+        const sat=maxC<=0?0:(maxC-minC)/maxC;
+        const vib=1 + f.vibrance*(1-sat)*(isSkin?0.55:1);
+        gray=0.2126*r+0.7152*g+0.0722*b;
+        r=gray+(r-gray)*vib; g=gray+(g-gray)*vib; b=gray+(b-gray)*vib;
+      }
+      if(f.cool){
+        r*=1-f.cool*0.22;
+        g*=1-f.cool*0.05;
+        b*=1+f.cool*0.38;
+      }
       if(f.sepia){
         const sr=r*0.393+g*0.769+b*0.189;
         const sg=r*0.349+g*0.686+b*0.168;
@@ -335,6 +369,40 @@
         const ng=r*hueMatrix[3]+g*hueMatrix[4]+b*hueMatrix[5];
         const nb=r*hueMatrix[6]+g*hueMatrix[7]+b*hueMatrix[8];
         r=nr; g=ng; b=nb;
+      }
+      if(f.blueBoost && !isSkin){
+        if(b>r*1.03 && b>g*0.92){
+          b*=1+f.blueBoost;
+          if(g>r) g*=1+f.blueBoost*0.28;
+        }else if(g>b && b>r){
+          b*=1+f.blueBoost*0.55;
+          g*=1+f.blueBoost*0.16;
+        }
+      }
+      if(f.shadowLift && luma0<138){
+        const lift=(138-luma0)/138*f.shadowLift*34;
+        r+=lift; g+=lift; b+=lift;
+      }
+      if(isSkin){
+        if(f.skinWarm){
+          r*=1+f.skinWarm*0.10;
+          g*=1+f.skinWarm*0.02;
+          b*=1-f.skinWarm*0.12;
+        }
+        if(f.skinSoft){
+          const softGray=0.299*r+0.587*g+0.114*b;
+          const soften=1-f.skinSoft*0.26;
+          r=softGray+(r-softGray)*soften;
+          g=softGray+(g-softGray)*soften;
+          b=softGray+(b-softGray)*soften;
+          r+=f.skinSoft*7;
+          g+=f.skinSoft*4;
+        }
+      }
+      if(f.curve){
+        r=toneCurveValue(r,f.curve);
+        g=toneCurveValue(g,f.curve);
+        b=toneCurveValue(b,f.curve);
       }
       data[i]=clampByte(r); data[i+1]=clampByte(g); data[i+2]=clampByte(b);
     }
@@ -406,9 +474,7 @@
     workingBtn.disabled=true;
     try{
       const {canvas, blob}=await buildResultBlob();
-      const capturedKind=state.resultKind;
-      clearResult(); state.resultKind=capturedKind;
-      state.resultBlob=blob; state.resultURL=URL.createObjectURL(blob);
+      clearResult(); state.resultBlob=blob; state.resultURL=URL.createObjectURL(blob);
       $.result.src=state.resultURL;
       $.view.dataset.source='result'; hideGuide(); $.actions.dataset.mode='result';
       if(state.mode==='camera') stopCamera();
@@ -486,7 +552,7 @@
   });
   window.addEventListener('pagehide',stopCamera);
   updateFilter();
-  setAssist('此工具模擬三星偏鮮明、通透的風格。現在會盡量以較高解析度拍攝，並在下載時輸出真正已調色的 JPG。');
+  setAssist('此工具現在預設為更討喜的亮顏色調：膚色較柔和、陰影稍微提亮、整體更乾淨耐看。');
   if('serviceWorker' in navigator && location.protocol==='https:')
     window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
   </script>
