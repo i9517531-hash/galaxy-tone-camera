@@ -198,21 +198,16 @@
   async function maximizeTrack(track){
     if(!track?.applyConstraints) return;
     const caps=track.getCapabilities?.()||{};
-    const tries=[];
     if(caps.width?.max && caps.height?.max){
-      const mw=caps.width.max, mh=caps.height.max;
-      tries.push({width:{ideal:mw},height:{ideal:mh}});
-      tries.push({advanced:[{width:mw,height:mh}]});
-    }
-    tries.push({advanced:[
-      {width:4032,height:3024},
-      {width:3840,height:2160},
-      {width:3024,height:3024},
-      {width:2560,height:1920},
-      {width:1920,height:1440}
-    ]});
-    for(const c of tries){
-      try{await track.applyConstraints(c);}catch(err){}
+      try{
+        await track.applyConstraints({
+          width:{ideal:caps.width.max},
+          height:{ideal:caps.height.max},
+          aspectRatio:{ideal:4/3}
+        });
+      }catch(err){
+        // 保留原本成功取得的串流尺寸，避免誤降解析度。
+      }
     }
   }
   async function startCamera(){
@@ -411,7 +406,9 @@
     workingBtn.disabled=true;
     try{
       const {canvas, blob}=await buildResultBlob();
-      clearResult(); state.resultBlob=blob; state.resultURL=URL.createObjectURL(blob);
+      const capturedKind=state.resultKind;
+      clearResult(); state.resultKind=capturedKind;
+      state.resultBlob=blob; state.resultURL=URL.createObjectURL(blob);
       $.result.src=state.resultURL;
       $.view.dataset.source='result'; hideGuide(); $.actions.dataset.mode='result';
       if(state.mode==='camera') stopCamera();
