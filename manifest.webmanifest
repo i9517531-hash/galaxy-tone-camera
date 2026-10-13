@@ -1,0 +1,26 @@
+{
+  "name": "Galaxy Tone 私人色調相機",
+  "short_name": "Galaxy Tone",
+  "description": "三星風格色調的私人相機與照片調整工具。照片不需上傳。",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#090c14",
+  "theme_color": "#090c14",
+  "orientation": "portrait",
+  "lang": "zh-Hant",
+  "icons": [
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
